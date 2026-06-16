@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LINE料金シミュレーター</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    background: #f5f7fa;
+    color: #1a1a2e;
+    padding: 24px;
+    min-height: 100vh;
+  }
+  h1 {
+    font-size: 18px;
+    font-weight: 700;
+    color: #00b900;
+    margin-bottom: 4px;
+  }
+  .subtitle { font-size: 12px; color: #888; margin-bottom: 24px; }
+
+  .input-section {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+  }
+  .input-section label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #444;
+    display: block;
+    margin-bottom: 8px;
+  }
+  .slider-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  input[type=range] {
+    flex: 1;
+    accent-color: #00b900;
+    height: 6px;
+  }
+  .val-display {
+    font-size: 22px;
+    font-weight: 700;
+    color: #00b900;
+    min-width: 100px;
+    text-align: right;
+    white-space: nowrap;
+  }
+  .val-unit { font-size: 13px; color: #888; font-weight: 400; }
+
+  .cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 18px 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+    border-top: 4px solid #ccc;
+  }
+  .card.std { border-color: #4f8ef7; }
+  .card.ent { border-color: #f7a24f; }
+  .card-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 12px;
+  }
+  .card.std .card-title { color: #4f8ef7; }
+  .card.ent .card-title { color: #f7a24f; }
+  .fee-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 6px;
+  }
+  .fee-label { font-size: 12px; color: #aaa; }
+  .fee-old { font-size: 14px; color: #aaa; text-decoration: line-through; }
+  .fee-new { font-size: 20px; font-weight: 700; color: #1a1a2e; }
+  .fee-diff-up { font-size: 12px; color: #e05c5c; font-weight: 600; }
+  .fee-diff-no { font-size: 12px; color: #aaa; }
+  .best-badge {
+    display: inline-block;
+    background: #e8fbe8;
+    color: #00b900;
+    font-size: 11px;
+    font-weight: 700;
+    border-radius: 20px;
+    padding: 2px 10px;
+    margin-top: 8px;
+  }
+
+  .breakeven {
+    background: #fff;
+    border-radius: 12px;
+    padding: 18px 24px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+  }
+  .breakeven h2 { font-size: 13px; font-weight: 700; color: #444; margin-bottom: 12px; }
+  .be-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    margin-bottom: 6px;
+  }
+  .be-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .be-val { font-weight: 700; color: #1a1a2e; }
+
+  .chart-section {
+    background: #fff;
+    border-radius: 12px;
+    padding: 18px 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+  }
+  .chart-section h2 { font-size: 13px; font-weight: 700; color: #444; margin-bottom: 10px; }
+  .legend {
+    display: flex;
+    gap: 18px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+  }
+  .leg-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #555; }
+  .leg-swatch { width: 20px; height: 3px; border-radius: 2px; }
+  canvas { display: block; width: 100%; }
+  .marker-note {
+    background: #fff8e1;
+    border: 1px solid #ffc107;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 12px;
+    color: #b8860b;
+    margin-top: 12px;
+  }
+</style>
+</head>
+<body>
+
+<h1>📊 LINE通数料金シミュレーター</h1>
+<p class="subtitle">6月料金改定対応版 ／ スタンダード vs エンタープライズ 比較</p>
+
+<div class="input-section">
+  <label>月間送信通数</label>
+  <div class="slider-row">
+    <input type="range" id="slider" min="30000" max="90000" step="1000" value="59000">
+    <div class="val-display"><span id="dispVal">59,000</span><span class="val-unit"> 通</span></div>
+  </div>
+</div>
+
+<div class="cards">
+  <div class="card std" id="cardStd"></div>
+  <div class="card ent" id="cardEnt"></div>
+</div>
+
+<div class="breakeven">
+  <h2>💡 損益分岐点（スタンダード → エンタープライズが有利になる通数）</h2>
+  <div class="be-row">
+    <div class="be-dot" style="background:#4f8ef7"></div>
+    <span>旧料金（〜5月）：</span><span class="be-val" id="beOld">-</span>
+  </div>
+  <div class="be-row">
+    <div class="be-dot" style="background:#e05c5c"></div>
+    <span>新料金（6月〜）：</span><span class="be-val" id="beNew">-</span>
+  </div>
+</div>
+
+<div class="chart-section">
+  <h2>料金比較グラフ（30,000〜90,000通）</h2>
+  <div class="legend">
+    <div class="leg-item"><div class="leg-swatch" style="background:#4f8ef7;border-top:2px dashed #4f8ef7;height:0;border-radius:0"></div>スタンダード（旧）</div>
+    <div class="leg-item"><div class="leg-swatch" style="background:#e05c5c"></div>スタンダード（新）</div>
+    <div class="leg-item"><div class="leg-swatch" style="background:#f7a24f"></div>エンタープライズ</div>
+    <div class="leg-item"><div style="width:2px;height:14px;background:#00b900;border-radius:1px"></div>現在の通数</div>
+  </div>
+  <canvas id="chart"></canvas>
+  <div class="marker-note" id="markerNote"></div>
+</div>
+
+<script>
+function calcStdOld(n) { return 54000 + Math.max(0, n - 30000) * 2.2; }
+function calcStdNew(n) { return 54000 + Math.max(0, n - 30000) * 3.3; }
+function calcEnt(n)    { return 108000 + Math.max(0, n - 100000) * 1.1; }
+
+function findBE(fnA, fnB) {
+  let lo = 30000, hi = 200000;
+  for (let i = 0; i < 60; i++) {
+    const mid = (lo + hi) / 2;
+    if (fnA(mid) > fnB(mid)) hi = mid; else lo = mid;
+  }
+  return Math.round((lo + hi) / 2);
+}
+
+const beOld = findBE(calcStdOld, calcEnt);
+const beNew = findBE(calcStdNew, calcEnt);
+document.getElementById('beOld').textContent = beOld.toLocaleString() + ' 通';
+document.getElementById('beNew').textContent = beNew.toLocaleString() + ' 通';
+
+const canvas = document.getElementById('chart');
+const ctx = canvas.getContext('2d');
+const MIN_N = 30000, MAX_N = 90000, STEPS = 120;
+
+const pts = { stdOld: [], stdNew: [], ent: [] };
+for (let i = 0; i <= STEPS; i++) {
+  const n = MIN_N + (MAX_N - MIN_N) * i / STEPS;
+  pts.stdOld.push(calcStdOld(n));
+  pts.stdNew.push(calcStdNew(n));
+  pts.ent.push(calcEnt(n));
+}
+
+let curN = 59000;
+
+function drawChart() {
+  const W = canvas.clientWidth || 640;
+  const H = 240;
+  canvas.width = W; canvas.height = H;
+  const PAD = { left: 72, right: 16, top: 16, bottom: 36 };
+  const minY = 40000;
+  const maxY = 280000;
+
+  function tx(n) { return PAD.left + (n - MIN_N) / (MAX_N - MIN_N) * (W - PAD.left - PAD.right); }
+  function ty(v) { return PAD.top + (1 - (v - minY) / (maxY - minY)) * (H - PAD.top - PAD.bottom); }
+
+  ctx.clearRect(0, 0, W, H);
+
+  // grid
+  [50000,100000,150000,200000,250000].forEach(v => {
+    if (v < minY || v > maxY) return;
+    const y = ty(v);
+    ctx.strokeStyle = '#eee'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(W - PAD.right, y); ctx.stroke();
+    ctx.fillStyle = '#bbb'; ctx.font = '10px sans-serif'; ctx.textAlign = 'right';
+    ctx.fillText((v / 10000) + '万', PAD.left - 6, y + 4);
+  });
+
+  // x labels
+  [30000,40000,50000,60000,70000,80000,90000].forEach(n => {
+    const x = tx(n);
+    ctx.strokeStyle = '#f0f0f0'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, PAD.top); ctx.lineTo(x, H - PAD.bottom); ctx.stroke();
+    ctx.fillStyle = '#bbb'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText((n/10000) + '万', x, H - PAD.bottom + 14);
+  });
+
+  // x axis
+  ctx.strokeStyle = '#ddd'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(PAD.left, H - PAD.bottom); ctx.lineTo(W - PAD.right, H - PAD.bottom); ctx.stroke();
+
+  // draw line
+  function line(arr, color, dashed) {
+    ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 2;
+    ctx.setLineDash(dashed ? [6, 4] : []);
+    for (let i = 0; i <= STEPS; i++) {
+      const x = PAD.left + (W - PAD.left - PAD.right) * i / STEPS;
+      const y = ty(arr[i]);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.stroke(); ctx.setLineDash([]);
+  }
+
+  line(pts.ent, '#f7a24f', false);
+  line(pts.stdOld, '#4f8ef7', true);
+  line(pts.stdNew, '#e05c5c', false);
+
+  // breakeven verticals
+  function drawBE(n, color, label) {
+    if (n < MIN_N || n > MAX_N) return;
+    const x = tx(n);
+    ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.moveTo(x, PAD.top + 16); ctx.lineTo(x, H - PAD.bottom); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = color; ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(label, x, PAD.top + 12);
+  }
+  drawBE(beOld, '#4f8ef7', '旧BEP ' + (beOld/10000).toFixed(1) + '万');
+  drawBE(beNew, '#e05c5c', '新BEP ' + (beNew/10000).toFixed(1) + '万');
+
+  // current line
+  const cx = tx(curN);
+  ctx.strokeStyle = '#00b900'; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.moveTo(cx, PAD.top); ctx.lineTo(cx, H - PAD.bottom); ctx.stroke();
+
+  // dots
+  function interp(arr) {
+    const ni = (curN - MIN_N) / (MAX_N - MIN_N) * STEPS;
+    const i0 = Math.min(Math.floor(ni), STEPS - 1);
+    return arr[i0] + (arr[i0 + 1] - arr[i0]) * (ni - i0);
+  }
+  [[interp(pts.stdOld), '#4f8ef7'], [interp(pts.stdNew), '#e05c5c'], [interp(pts.ent), '#f7a24f']].forEach(([v, c]) => {
+    ctx.beginPath(); ctx.arc(cx, ty(v), 5, 0, Math.PI * 2);
+    ctx.fillStyle = c; ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
+  });
+}
+
+function fmt(v) { return '¥' + Math.round(v).toLocaleString(); }
+
+function update() {
+  curN = parseInt(document.getElementById('slider').value);
+  document.getElementById('dispVal').textContent = curN.toLocaleString();
+
+  const so = calcStdOld(curN), sn = calcStdNew(curN), en = calcEnt(curN);
+  const diff = sn - so;
+  const best = sn <= en ? 'スタンダード' : 'エンタープライズ';
+
+  document.getElementById('cardStd').innerHTML = `
+    <div class="card-title">スタンダード</div>
+    <div class="fee-row"><span class="fee-label">〜5月（旧）</span><span class="fee-old">${fmt(so)}</span></div>
+    <div class="fee-row"><span class="fee-label">6月〜（新）</span><span class="fee-new">${fmt(sn)}</span></div>
+    <div class="fee-row"><span class="fee-label">差額</span><span class="fee-diff-up">+${Math.round(diff).toLocaleString()}円</span></div>
+    ${best === 'スタンダード' ? '<div class="best-badge">✓ この通数ではこちらが有利</div>' : ''}
+  `;
+  document.getElementById('cardEnt').innerHTML = `
+    <div class="card-title">エンタープライズ</div>
+    <div class="fee-row"><span class="fee-label">〜5月（旧）</span><span class="fee-old">${fmt(en)}</span></div>
+    <div class="fee-row"><span class="fee-label">6月〜（新）</span><span class="fee-new">${fmt(en)}</span></div>
+    <div class="fee-row"><span class="fee-label">差額</span><span class="fee-diff-no">変更なし</span></div>
+    ${best === 'エンタープライズ' ? '<div class="best-badge">✓ この通数ではこちらが有利</div>' : ''}
+  `;
+  document.getElementById('markerNote').textContent =
+    `現在 ${curN.toLocaleString()} 通 ｜ スタンダード(新) ${fmt(sn)} ／ エンタープライズ ${fmt(en)}`;
+
+  drawChart();
+}
+
+document.getElementById('slider').addEventListener('input', update);
+window.addEventListener('resize', () => drawChart());
+update();
+</script>
+</body>
+</html>
